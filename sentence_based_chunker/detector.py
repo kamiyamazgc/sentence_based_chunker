@@ -22,7 +22,7 @@ def _stage_a(embeddings: List[np.ndarray], θ_high: float, θ_low: float) -> Lis
     results: List[bool] = []
     for i in range(1, len(embeddings)):
         sim = float(cosine_similarity(embeddings[i - 1 : i], embeddings[i : i + 1])[0][0])
-        results.append(sim < θ_low)  # 低相関なら境界
+        results.append(bool(sim < θ_low))  # bool 化して型警告を抑制
     results.insert(0, False)  # 先頭は境界無し
     return results
 
@@ -49,7 +49,7 @@ def _stage_b(embeddings: List[np.ndarray], k: int, τ: float) -> List[bool]:
     avg = _moving_average(sims, k)
     resid = [abs(s - a) for s, a in zip(sims, avg)]
     sigma = np.std(resid)
-    results = [r > τ * sigma for r in resid]
+    results = [bool(r > τ * sigma) for r in resid]
     return results
 
 
