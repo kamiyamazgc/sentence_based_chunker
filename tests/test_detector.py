@@ -12,7 +12,7 @@ from sentence_based_chunker.config import (
 
 def _dummy_cfg() -> Config:
     return Config(
-        runtime=RuntimeConfig(),
+        runtime=RuntimeConfig(device="cpu"),
         llm=LLMConfig(),
         failover=FailoverConfig(),
         detector=DetectorConfig(θ_high=0.9, θ_low=0.8, k=2, τ=10, n_vote=3),
