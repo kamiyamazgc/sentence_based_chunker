@@ -6,7 +6,7 @@ import pathlib
 import re
 from typing import Generator, List
 
-_SENT_SPLIT_REGEX = re.compile(r"(?<=[。．！？!?]\s?)")
+_SENT_SPLIT_REGEX = re.compile(r"(?<=[。．！？!?])")
 
 
 def _split_sentences(text: str) -> List[str]:

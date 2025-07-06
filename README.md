@@ -25,3 +25,10 @@ TXT → PreProcess → Embedding → Detector → Builder → Writer
 
 ## ライセンス
 MIT
+
+## テストの実行
+`pytest` を使ったユニットテストを同梱しています。
+
+```bash
+pytest -q
+```
