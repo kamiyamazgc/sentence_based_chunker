@@ -10,6 +10,9 @@ import aiohttp
 
 from .config import Config
 
+# グローバルタイムアウトを明示する（linters の警告回避）
+_TIMEOUT = aiohttp.ClientTimeout(total=120)
+
 
 async def _call_local(prompt: str, cfg: Config) -> str:
     """非同期でローカル LLM サーバーに問い合わせる"""
@@ -19,8 +22,8 @@ async def _call_local(prompt: str, cfg: Config) -> str:
         "max_tokens": 64,
         "temperature": 0,
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, timeout=120) as resp:
+    async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+        async with session.post(url, json=payload) as resp:
             data = await resp.json()
     return data.get("choices", [{}])[0].get("text", "")
 
