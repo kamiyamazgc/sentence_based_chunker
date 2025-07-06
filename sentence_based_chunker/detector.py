@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Generator, Iterable, List
+from typing import Generator, Iterable, List, TYPE_CHECKING
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .config import Config
-from .provider_router import ProviderRouter
+
+# 遅延評価の型ヒント用途。実行時に未使用のため lint エラーを回避
+if TYPE_CHECKING:
+    from .provider_router import ProviderRouter
 
 
 # ------------------------------------------------------------
@@ -53,7 +56,7 @@ def _stage_b(embeddings: List[np.ndarray], k: int, τ: float) -> List[bool]:
 # ------------------------------------------------------------
 # C. LLM 精査 stage
 # ------------------------------------------------------------
-async def _stage_c(sentences: List[str], prelim: List[bool], router: ProviderRouter, n_vote: int) -> List[bool]:
+async def _stage_c(sentences: List[str], prelim: List[bool], router: "ProviderRouter", n_vote: int) -> List[bool]:
     refined = prelim.copy()
     for idx, is_boundary in enumerate(prelim):
         if not is_boundary:
