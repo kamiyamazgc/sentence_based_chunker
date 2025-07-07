@@ -272,7 +272,8 @@ class DocumentNode:
         
         # ドキュメントレベルのコンテンツがある場合は追加
         if self.content:
-            lines.append(self.content)
+            # 文書タイトルをMarkdown形式で出力
+            lines.append(f"# {self.content}")
             
             # 文書タイトル後の空行
             if format_config.preserve_blank_lines and self.children:
@@ -336,6 +337,19 @@ class DocumentNode:
                 continuation_indent = " " * (len(indent) + len(marker) + 1)
                 formatted_lines.append(f"{continuation_indent}{line}")
         
+        # 子ノード（ネストしたリスト）の処理を追加
+        if self.children:
+            for child in self.children:
+                child_text = child.to_text(preserve_formatting, format_config)
+                if child_text:
+                    # 子ノードの各行を適切にインデント
+                    child_lines = child_text.split('\n')
+                    for child_line in child_lines:
+                        if child_line.strip():  # 空行でない場合
+                            formatted_lines.append(child_line)
+                        else:
+                            formatted_lines.append(child_line)
+        
         return '\n'.join(formatted_lines)
     
     def _format_section_header(self, format_config: FormatConfig) -> str:
@@ -374,9 +388,8 @@ class DocumentNode:
         if list_type == 'ordered':
             return f"{item_number}."
         else:
-            # インデントレベルによってマーカーを変更
-            markers = ['-', '*', '+']
-            return markers[indent_level % len(markers)]
+            # すべてのレベルで統一されたマーカーを使用
+            return '-'
     
     def _preserve_original_line_breaks(self, content: str) -> str:
         """元の改行パターンを保持
