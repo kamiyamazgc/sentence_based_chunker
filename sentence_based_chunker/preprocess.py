@@ -6,6 +6,8 @@ import pathlib
 import re
 from typing import Generator, List
 
+from .exceptions import FileReadError
+
 _SENT_SPLIT_REGEX = re.compile(r"(?<=[。．！？!?])")
 
 
@@ -16,9 +18,17 @@ def _split_sentences(text: str) -> List[str]:
 
 
 def stream_sentences(path: pathlib.Path | str) -> Generator[str, None, None]:
-    """ファイルを読み込み、文を逐次 yield する"""
+    """ファイルを読み込み、文を逐次 yield する。
+
+    ファイルが見つからない、または読み込みに失敗した場合は ``FileReadError`` を送出する。
+    """
     path = pathlib.Path(path)
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            for sent in _split_sentences(line):
-                yield sent
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                for sent in _split_sentences(line):
+                    yield sent
+    except FileNotFoundError as e:
+        raise FileReadError(f"入力ファイルが見つかりません: {path}") from e
+    except Exception as e:  # pylint: disable=broad-except
+        raise FileReadError(f"入力ファイルの読み取り中にエラーが発生しました: {e}") from e

@@ -9,6 +9,7 @@ from typing import Any, Dict
 import aiohttp
 
 from .config import Config
+from .exceptions import LLMCallError
 
 # グローバルタイムアウトを明示する（linters の警告回避）
 _TIMEOUT = aiohttp.ClientTimeout(total=120)
@@ -23,10 +24,22 @@ async def _call_local(prompt: str, cfg: Config) -> str:
         "max_tokens": 64,
         "temperature": 0,
     }
-    async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-        async with session.post(url, json=payload) as resp:
-            data = await resp.json()
-    return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    try:
+        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+            async with session.post(url, json=payload) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    raise LLMCallError(f"ローカル LLM サーバーからエラーコード {resp.status} が返されました: {text}")
+                data = await resp.json()
+    except aiohttp.ClientError as e:
+        raise LLMCallError(f"ローカル LLM サーバーへの接続に失敗しました: {e}") from e
+    except Exception as e:  # pylint: disable=broad-except
+        raise LLMCallError(f"ローカル LLM 応答の処理中にエラーが発生しました: {e}") from e
+
+    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    if content == "":
+        raise LLMCallError("ローカル LLM から空のレスポンスが返されました")
+    return content
 
 
 def generate(prompt: str, cfg: Config) -> str:

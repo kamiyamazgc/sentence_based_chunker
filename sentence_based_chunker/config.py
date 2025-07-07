@@ -7,6 +7,7 @@ from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Field
+from .exceptions import ConfigLoadError
 
 
 class RuntimeConfig(BaseModel):
@@ -55,8 +56,23 @@ class Config(BaseModel):
 # ------------------------------------------------------------
 
 def load_config(path: pathlib.Path | str) -> Config:
-    """YAML ファイルを読み込み Config オブジェクトを返す"""
+    """YAML ファイルを読み込み Config オブジェクトを返す。
+
+    何らかの理由で読み込みに失敗した場合は ``ConfigLoadError`` を送出する。
+    """
     path = pathlib.Path(path)
-    with path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return Config.model_validate(data)
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError as e:
+        raise ConfigLoadError(f"設定ファイルが見つかりません: {path}") from e
+    except yaml.YAMLError as e:
+        raise ConfigLoadError(f"YAML の解析に失敗しました: {e}") from e
+    except Exception as e:  # pylint: disable=broad-except
+        raise ConfigLoadError(f"設定ファイルの読み込み中に予期せぬエラーが発生しました: {e}") from e
+
+    # バリデーション
+    try:
+        return Config.model_validate(data)
+    except Exception as e:  # pylint: disable=broad-except
+        raise ConfigLoadError(f"設定値のバリデーションに失敗しました: {e}") from e
