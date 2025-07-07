@@ -6,6 +6,7 @@ import typer
 
 from .config import load_config, Config
 from . import preprocess, embedding as emb_mod, detector as det_mod, builder as builder_mod, writer as writer_mod
+from .exceptions import SentenceBasedChunkerError
 
 app = typer.Typer(add_completion=False, help="Sentence-Based Chunker CLI")
 
@@ -18,25 +19,34 @@ def run(
     output: Optional[pathlib.Path] = typer.Option(None, "--output", help="出力ファイルパス。未指定なら <input>.chunks.jsonl"),
 ):
     """文章ファイルを分割し、チャンク情報を出力します。"""
-    cfg: Config = load_config(conf)
-    if force_remote:
-        cfg.llm.provider = "remote"
-    # 文リスト生成 (ストリームで2回利用するためリスト化)
-    sentences = list(preprocess.stream_sentences(input_path))
+    try:
+        cfg: Config = load_config(conf)
+        if force_remote:
+            cfg.llm.provider = "remote"
 
-    # ベクトル生成
-    embeddings = emb_mod.embed_stream(sentences, cfg)
+        # 文リスト生成 (ストリームで2回利用するためリスト化)
+        sentences = list(preprocess.stream_sentences(input_path))
 
-    # 境界判定
-    boundaries = list(det_mod.detect_boundaries(embeddings, cfg))
+        # ベクトル生成
+        embeddings = emb_mod.embed_stream(sentences, cfg)
 
-    # チャンク構築
-    chunks = builder_mod.build_chunks(sentences, boundaries, cfg)
+        # 境界判定
+        boundaries = list(det_mod.detect_boundaries(embeddings, cfg))
 
-    # 出力
-    out_path = output or input_path.with_suffix(".chunks.jsonl")
-    writer_mod.write_chunks(out_path, chunks)
-    typer.echo(f"書き込み完了: {out_path}")
+        # チャンク構築
+        chunks = builder_mod.build_chunks(sentences, boundaries, cfg)
+
+        # 出力
+        out_path = output or input_path.with_suffix(".chunks.jsonl")
+        writer_mod.write_chunks(out_path, chunks)
+        typer.echo(f"書き込み完了: {out_path}")
+    except SentenceBasedChunkerError as e:
+        typer.echo(f"エラー: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:  # pylint: disable=broad-except
+        # 予期しないエラー
+        typer.echo(f"予期しないエラーが発生しました: {e}", err=True)
+        sys.exit(1)
 
 
 @app.command()
