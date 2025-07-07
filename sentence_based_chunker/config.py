@@ -42,6 +42,7 @@ class DetectorConfig(BaseModel):
     k: int = 5
     τ: float = 3.5
     n_vote: int = 3
+    use_llm_review: bool = False  # Stage C（LLM精査）を使用するかどうか
 
 
 class Config(BaseModel):
