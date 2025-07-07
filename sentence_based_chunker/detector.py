@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generator, Iterable, List, TYPE_CHECKING
+from typing import Generator, Iterable, List, TYPE_CHECKING, Optional
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -88,7 +88,7 @@ def _stage_d(sentences: List[str], boundaries: List[bool]) -> List[bool]:
 # ------------------------------------------------------------
 
 def detect_boundaries(embeddings: Iterable[np.ndarray], cfg: Config) -> Generator[bool, None, None]:
-    """埋め込みストリームを受け取り、境界判定結果をストリームで返す"""
+    """埋め込みストリームを受け取り、境界判定結果をストリームで返す（同期版）"""
     emb_list: List[np.ndarray] = list(embeddings)
 
     # Stage A/B (同期)
@@ -99,3 +99,42 @@ def detect_boundaries(embeddings: Iterable[np.ndarray], cfg: Config) -> Generato
 
     for f in final_flags:
         yield f
+
+
+async def detect_boundaries_async(
+    embeddings: Iterable[np.ndarray], 
+    sentences: List[str], 
+    cfg: Config, 
+    router: Optional["ProviderRouter"] = None,
+    use_llm_review: bool = False
+) -> List[bool]:
+    """埋め込みストリームを受け取り、境界判定結果を返す（非同期版）
+    
+    Args:
+        embeddings: 埋め込みベクトルのIterable
+        sentences: 対応する文のリスト
+        cfg: 設定
+        router: LLMプロバイダルーター（Stage Cで使用）
+        use_llm_review: Stage C（LLM精査）を使用するかどうか
+    
+    Returns:
+        境界判定結果のリスト
+    """
+    emb_list: List[np.ndarray] = list(embeddings)
+
+    # Stage A/B (同期)
+    a_flags = _stage_a(emb_list, θ_high=cfg.detector.θ_high, θ_low=cfg.detector.θ_low)  # type: ignore[attr-defined]
+    b_flags = _stage_b(emb_list, k=cfg.detector.k, τ=cfg.detector.τ)  # type: ignore[attr-defined]
+
+    prelim_flags = [a or b for a, b in zip(a_flags, b_flags)]
+
+    # Stage C (非同期LLM精査) - オプション
+    if use_llm_review and router is not None:
+        refined_flags = await _stage_c(sentences, prelim_flags, router, cfg.detector.n_vote)
+    else:
+        refined_flags = prelim_flags
+
+    # Stage D (ポストフィルタ)
+    final_flags = _stage_d(sentences, refined_flags)
+
+    return final_flags
