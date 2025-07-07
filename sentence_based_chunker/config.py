@@ -45,11 +45,28 @@ class DetectorConfig(BaseModel):
     use_llm_review: bool = False  # Stage C（LLM精査）を使用するかどうか
 
 
+class DocumentStructureConfig(BaseModel):
+    """文書構造の処理設定"""
+    preserve_structure: bool = True
+    detect_markdown: bool = True
+    detect_html: bool = True
+    detect_indentation: bool = True
+    preserve_headers: bool = True
+    preserve_lists: bool = True
+    preserve_tables: bool = True
+    preserve_code_blocks: bool = True
+    min_header_level: int = 1
+    max_header_level: int = 6
+    list_indent_threshold: int = 2  # インデントリスト検出の閾値（スペース数）
+    preserve_whitespace: bool = True  # 構造的な空白の保持
+
+
 class Config(BaseModel):
     runtime: RuntimeConfig
     llm: LLMConfig
     failover: FailoverConfig
     detector: DetectorConfig = DetectorConfig()
+    document_structure: DocumentStructureConfig = DocumentStructureConfig()
 
 
 # ------------------------------------------------------------
