@@ -36,4 +36,7 @@ ENV/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# テスト用データをgit管理対象外にする
+/tests/data/ 

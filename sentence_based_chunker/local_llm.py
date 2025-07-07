@@ -16,16 +16,17 @@ _TIMEOUT = aiohttp.ClientTimeout(total=120)
 
 async def _call_local(prompt: str, cfg: Config) -> str:
     """非同期でローカル LLM サーバーに問い合わせる"""
-    url = cfg.llm.local.server_url  # type: ignore[attr-defined]
+    url = f"{cfg.llm.local.server_url}/v1/chat/completions"  # type: ignore[attr-defined]
     payload: Dict[str, Any] = {
-        "prompt": prompt,
+        "model": "gemma-3n-e2b-it-text",
+        "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 64,
         "temperature": 0,
     }
     async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
         async with session.post(url, json=payload) as resp:
             data = await resp.json()
-    return data.get("choices", [{}])[0].get("text", "")
+    return data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
 
 def generate(prompt: str, cfg: Config) -> str:

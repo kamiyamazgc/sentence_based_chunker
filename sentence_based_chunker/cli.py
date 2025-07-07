@@ -28,7 +28,7 @@ def run(
     embeddings = emb_mod.embed_stream(sentences, cfg)
 
     # 境界判定
-    boundaries = det_mod.detect_boundaries(embeddings, cfg)
+    boundaries = list(det_mod.detect_boundaries(embeddings, cfg))
 
     # チャンク構築
     chunks = builder_mod.build_chunks(sentences, boundaries, cfg)

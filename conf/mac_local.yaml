@@ -1,5 +1,5 @@
 runtime:
-  device: "mps"
+  device: "cpu"
   batch_size: 64
   llm_concurrency: 2
 
@@ -7,7 +7,7 @@ llm:
   provider: "local"             # local / remote / auto
   local:
     model_path: "~/models/phi3-mini.Q4_K_M.gguf"
-    server_url: "http://127.0.0.1:8000"
+    server_url: "http://127.0.0.1:1234"
   remote:
     endpoint:  "https://api.openai.com/v1/chat/completions"
     model:     "gpt-4o-mini"

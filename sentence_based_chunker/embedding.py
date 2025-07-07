@@ -26,10 +26,11 @@ def _get_model(device: str) -> SentenceTransformer:
 
 def _batch_iterator(it: Iterable[str], batch_size: int) -> Iterable[List[str]]:
     """イテレータをバッチ単位で切り出す"""
+    it = iter(it)
     while True:
         batch = list(itertools.islice(it, batch_size))
         if not batch:
-            return
+            break
         yield batch
 
 
