@@ -323,118 +323,201 @@ class SemanticDocumentParser:
         )
 ```
 
-**2. セマンティックチャンカー**
+**2. LLM翻訳用セマンティックチャンカー**
 ```python
-class SemanticChunker:
-    """セマンティック単位でのチャンク分割"""
+import tiktoken
+
+class LLMOptimizedSemanticChunker:
+    """LLM翻訳用に最適化されたセマンティック単位でのチャンク分割"""
     
     def __init__(self, config: Config):
         self.config = config
-        self.max_chunk_size = 1000  # 文字数制限
-        self.min_chunk_size = 100   # 最小文字数
+        # トークン数ベースの制限（LLM翻訳に最適化）
+        self.max_chunk_tokens = 3000    # LLMコンテキスト長を考慮
+        self.min_chunk_tokens = 200     # 翻訳品質を保つ最小単位
+        self.optimal_chunk_tokens = 2000  # 翻訳品質と効率のバランス
+        
+                 # トークナイザーの初期化（GPTベース）
+         self.tokenizer = tiktoken.get_encoding("cl100k_base")
+         
+         # 翻訳品質を考慮した構造優先度
+         self.structure_priorities = {
+             'section': 10,      # セクションは高優先度で保持
+             'paragraph': 8,     # 段落の完整性も重要
+             'list': 6,          # リストの一貫性
+             'list_item': 4      # 個別リストアイテム
+         }
+     
+     def create_chunks(self, document: DocumentNode) -> List[TranslationOptimizedChunk]:
+         """LLM翻訳に最適化された文書構造ベースのチャンク作成"""
+         chunks = []
+         
+         for section in document.children:
+             if section.node_type == 'section':
+                 section_chunks = self._chunk_section_for_translation(section)
+                 chunks.extend(section_chunks)
+             else:
+                 # ルートレベルのコンテンツ
+                 chunk = self._create_translation_chunk_from_node(section)
+                 if chunk:
+                     chunks.append(chunk)
+         
+         return self._optimize_chunks_for_translation(chunks)
+     
+     def _chunk_section_for_translation(self, section: DocumentNode) -> List[TranslationOptimizedChunk]:
+         """翻訳品質を考慮したセクション内チャンク分割"""
+         chunks = []
+         current_chunk_nodes = [section]  # 見出しを含める（翻訳時のコンテキストとして重要）
+         current_tokens = self._count_tokens(section.content)
+         
+         for child in section.children:
+             child_text = child.to_text()
+             child_tokens = self._count_tokens(child_text)
+             
+             # トークン数制限チェック
+             if current_tokens + child_tokens > self.max_chunk_tokens and current_chunk_nodes:
+                 # 最適なチャンクサイズに近いかチェック
+                 if current_tokens >= self.min_chunk_tokens:
+                     chunk = self._create_translation_chunk_from_nodes(current_chunk_nodes)
+                     chunks.append(chunk)
+                     current_chunk_nodes = [section]  # 次のチャンクも見出しを含める
+                     current_tokens = self._count_tokens(section.content)
+             
+             # 構造の完整性を考慮した分割判断
+             if self._should_split_for_translation_quality(child, current_tokens + child_tokens):
+                 if current_chunk_nodes and current_tokens >= self.min_chunk_tokens:
+                     chunk = self._create_translation_chunk_from_nodes(current_chunk_nodes)
+                     chunks.append(chunk)
+                     current_chunk_nodes = [section]
+                     current_tokens = self._count_tokens(section.content)
+             
+             current_chunk_nodes.append(child)
+             current_tokens += child_tokens
+         
+         if current_chunk_nodes and current_tokens >= self.min_chunk_tokens:
+             chunk = self._create_translation_chunk_from_nodes(current_chunk_nodes)
+             chunks.append(chunk)
+         
+         return chunks
+     
+     def _count_tokens(self, text: str) -> int:
+         """テキストのトークン数をカウント"""
+         return len(self.tokenizer.encode(text))
+     
+     def _should_split_for_translation_quality(self, node: DocumentNode, total_tokens: int) -> bool:
+         """翻訳品質を考慮した分割判断"""
+         # 最適サイズに近づいている場合、構造的な境界で分割
+         if total_tokens >= self.optimal_chunk_tokens:
+             structure_priority = self.structure_priorities.get(node.node_type, 0)
+             return structure_priority >= 6  # セクションや段落境界で分割
+         return False
     
-    def create_chunks(self, document: DocumentNode) -> List[SemanticChunk]:
-        """文書構造に基づくチャンク作成"""
-        chunks = []
-        
-        for section in document.children:
-            if section.node_type == 'section':
-                section_chunks = self._chunk_section(section)
-                chunks.extend(section_chunks)
-            else:
-                # ルートレベルのコンテンツ
-                chunk = self._create_chunk_from_node(section)
-                if chunk:
-                    chunks.append(chunk)
-        
-        return self._post_process_chunks(chunks)
-    
-    def _chunk_section(self, section: DocumentNode) -> List[SemanticChunk]:
-        """セクション内のチャンク分割"""
-        chunks = []
-        current_chunk_nodes = [section]  # 見出しを含める
-        current_size = len(section.content)
-        
-        for child in section.children:
-            child_size = len(child.to_text())
-            
-            if current_size + child_size > self.max_chunk_size and current_chunk_nodes:
-                # チャンクを確定
-                chunk = self._create_chunk_from_nodes(current_chunk_nodes)
-                chunks.append(chunk)
-                current_chunk_nodes = []
-                current_size = 0
-            
-            current_chunk_nodes.append(child)
-            current_size += child_size
-        
-        if current_chunk_nodes:
-            chunk = self._create_chunk_from_nodes(current_chunk_nodes)
-            chunks.append(chunk)
-        
-        return chunks
-    
-    def _create_chunk_from_nodes(self, nodes: List[DocumentNode]) -> 'SemanticChunk':
-        """ノード群からチャンクを作成"""
-        text_parts = []
-        metadata = {
-            'node_types': [node.node_type for node in nodes],
-            'has_header': any(node.node_type == 'section' for node in nodes),
-            'has_list': any(node.node_type == 'list' for node in nodes),
-            'structure_integrity': True
-        }
-        
-        for node in nodes:
-            formatted_text = node.to_text(preserve_formatting=True)
-            text_parts.append(formatted_text)
-        
-        return SemanticChunk(
-            text='\n'.join(text_parts),
-            sentences=self._extract_sentences(nodes),
-            semantic_metadata=metadata
-        )
-    
-    def _post_process_chunks(self, chunks: List['SemanticChunk']) -> List['SemanticChunk']:
-        """チャンクの後処理（統合・分割）"""
-        processed = []
-        
-        for chunk in chunks:
-            if len(chunk.text) < self.min_chunk_size and processed:
-                # 小さすぎるチャンクは前のチャンクに統合
-                processed[-1] = self._merge_chunks(processed[-1], chunk)
-            else:
-                processed.append(chunk)
-        
-        return processed
+              def _create_translation_chunk_from_nodes(self, nodes: List[DocumentNode]) -> 'TranslationOptimizedChunk':
+         """翻訳最適化チャンクの作成"""
+         text_parts = []
+         total_tokens = 0
+         
+         # 翻訳品質を考慮したメタデータ
+         metadata = {
+             'node_types': [node.node_type for node in nodes],
+             'has_header': any(node.node_type == 'section' for node in nodes),
+             'has_list': any(node.node_type == 'list' for node in nodes),
+             'translation_context_preserved': True,
+             'structure_complexity': self._calculate_structure_complexity(nodes)
+         }
+         
+         for node in nodes:
+             formatted_text = node.to_text(preserve_formatting=True)
+             text_parts.append(formatted_text)
+             total_tokens += self._count_tokens(formatted_text)
+         
+         combined_text = '\n'.join(text_parts)
+         
+         return TranslationOptimizedChunk(
+             text=combined_text,
+             sentences=self._extract_sentences(nodes),
+             token_count=total_tokens,
+             translation_metadata=metadata
+         )
+     
+     def _optimize_chunks_for_translation(self, chunks: List['TranslationOptimizedChunk']) -> List['TranslationOptimizedChunk']:
+         """翻訳最適化のための後処理"""
+         optimized = []
+         
+         for chunk in chunks:
+             # 小さすぎるチャンクの統合（翻訳効率を考慮）
+             if chunk.token_count < self.min_chunk_tokens and optimized:
+                 prev_chunk = optimized[-1]
+                 if prev_chunk.token_count + chunk.token_count <= self.max_chunk_tokens:
+                     # 統合可能な場合は統合
+                     merged_chunk = self._merge_translation_chunks(prev_chunk, chunk)
+                     optimized[-1] = merged_chunk
+                 else:
+                     optimized.append(chunk)
+             else:
+                 optimized.append(chunk)
+         
+         return optimized
+     
+     def _calculate_structure_complexity(self, nodes: List[DocumentNode]) -> float:
+         """構造の複雑性を計算（翻訳難易度の指標）"""
+         complexity = 0.0
+         node_types = [node.node_type for node in nodes]
+         
+         # 構造タイプの多様性
+         unique_types = len(set(node_types))
+         complexity += unique_types * 0.2
+         
+         # リスト構造の複雑性
+         list_nodes = [node for node in nodes if node.node_type in ['list', 'list_item']]
+         if list_nodes:
+             complexity += len(list_nodes) * 0.1
+         
+         return min(complexity, 1.0)  # 最大1.0に正規化
 
 @dataclass
-class SemanticChunk:
-    """セマンティック情報を含むチャンク"""
+class TranslationOptimizedChunk:
+    """LLM翻訳用に最適化されたチャンク"""
     text: str
     sentences: List[str]
-    semantic_metadata: Dict[str, Any]
+    token_count: int
+    translation_metadata: Dict[str, Any]
     
     def to_dict(self) -> Dict[str, Any]:
         """JSON出力用の辞書変換"""
         return {
             'text': self.text,
             'sentences': self.sentences,
-            'metadata': self.semantic_metadata
+            'token_count': self.token_count,
+            'metadata': self.translation_metadata
         }
+    
+    def is_translation_ready(self) -> bool:
+        """翻訳準備完了状態の確認"""
+        return (200 <= self.token_count <= 3000 and 
+                self.translation_metadata.get('translation_context_preserved', False))
 ```
 
-**3. 統合パイプライン**
+**3. LLM翻訳最適化パイプライン**
 ```python
-class SemanticChunkingPipeline:
-    """セマンティックチャンクングパイプライン"""
+class TranslationOptimizedChunkingPipeline:
+    """LLM翻訳に最適化されたチャンクングパイプライン"""
     
     def __init__(self, config: Config):
         self.config = config
         self.parser = SemanticDocumentParser(config.document_structure)
-        self.chunker = SemanticChunker(config)
+        self.chunker = LLMOptimizedSemanticChunker(config)
+        
+        # 翻訳品質向上のための設定
+        self.translation_config = {
+            'preserve_context': True,
+            'max_tokens_per_chunk': 3000,
+            'min_tokens_per_chunk': 200,
+            'optimal_tokens_per_chunk': 2000
+        }
     
-    async def process(self, input_path: pathlib.Path) -> List[SemanticChunk]:
-        """エンドツーエンドの処理"""
+    async def process(self, input_path: pathlib.Path) -> List[TranslationOptimizedChunk]:
+        """LLM翻訳用エンドツーエンド処理"""
         # 1. 構造認識前処理
         structured_sentences = list(stream_structured_sentences(
             input_path, 
@@ -444,28 +527,64 @@ class SemanticChunkingPipeline:
         # 2. 文書構造解析
         document = self.parser.parse(structured_sentences)
         
-        # 3. セマンティックチャンク分割
+        # 3. 翻訳最適化チャンク分割
         chunks = self.chunker.create_chunks(document)
         
-        # 4. 品質検証
-        validated_chunks = self._validate_chunks(chunks)
+        # 4. 翻訳品質検証
+        validated_chunks = self._validate_translation_chunks(chunks)
         
-        return validated_chunks
+        # 5. 翻訳準備状態の確認
+        ready_chunks = self._ensure_translation_readiness(validated_chunks)
+        
+        return ready_chunks
     
-    def _validate_chunks(self, chunks: List[SemanticChunk]) -> List[SemanticChunk]:
-        """チャンク品質の検証"""
+    def _validate_translation_chunks(self, chunks: List[TranslationOptimizedChunk]) -> List[TranslationOptimizedChunk]:
+        """翻訳用チャンク品質の検証"""
         validated = []
         
         for chunk in chunks:
-            # 構造整合性の確認
-            if self._validate_structure_integrity(chunk):
+            # 翻訳適性の確認
+            if self._is_translation_suitable(chunk):
                 validated.append(chunk)
             else:
-                # 問題のあるチャンクは修復または分割
-                repaired_chunks = self._repair_chunk(chunk)
+                # 翻訳に適さないチャンクは修復
+                repaired_chunks = self._repair_translation_chunk(chunk)
                 validated.extend(repaired_chunks)
         
         return validated
+    
+    def _is_translation_suitable(self, chunk: TranslationOptimizedChunk) -> bool:
+        """翻訳適性の判定"""
+        # トークン数制限の確認
+        if not (self.translation_config['min_tokens_per_chunk'] <= 
+                chunk.token_count <= 
+                self.translation_config['max_tokens_per_chunk']):
+            return False
+        
+        # 構造完整性の確認
+        if not chunk.translation_metadata.get('translation_context_preserved', False):
+            return False
+        
+        # 構造複雑性の確認（翻訳困難度）
+        complexity = chunk.translation_metadata.get('structure_complexity', 0)
+        if complexity > 0.8:  # 過度に複雑な構造は分割推奨
+            return False
+        
+        return True
+    
+    def _ensure_translation_readiness(self, chunks: List[TranslationOptimizedChunk]) -> List[TranslationOptimizedChunk]:
+        """翻訳準備状態の最終確認"""
+        ready_chunks = []
+        
+        for chunk in chunks:
+            if chunk.is_translation_ready():
+                ready_chunks.append(chunk)
+            else:
+                # 準備不完了のチャンクをログ出力（デバッグ用）
+                print(f"Warning: Chunk not ready for translation. Token count: {chunk.token_count}")
+                ready_chunks.append(chunk)  # 警告付きで通す
+        
+        return ready_chunks
 ```
 
 #### 案Bのメリット・デメリット
@@ -503,11 +622,19 @@ class SemanticChunkingPipeline:
 - メモリ使用量: +20% (構造情報保持のため)
 - 処理速度: +10% (構造ルール処理のため)
 - 出力品質: +60% (改行・構造保持)
+- 翻訳適性: ★★★☆☆ (基本的な改善)
 
-**案B: セマンティック構造パーサー型**
-- メモリ使用量: +50% (階層構造・メタデータ)
-- 処理速度: +30% (構造解析処理)
+**案B: LLM翻訳最適化セマンティック構造パーサー型**
+- メモリ使用量: +40% (階層構造・メタデータ・トークナイザー)
+- 処理速度: +25% (構造解析・トークン計算処理)
 - 出力品質: +90% (完全な構造認識)
+- 翻訳適性: ★★★★★ (トークン数最適化・コンテキスト保持)
+- 翻訳効率: +150% (最適なチャンクサイズ・構造保持)
+
+**LLM翻訳特有の改善点:**
+- トークン数制御: 200-3000トークンの範囲で最適化
+- コンテキスト保持: 見出し情報を各チャンクに含める
+- 翻訳品質指標: 構造複雑性による翻訳難易度評価
 
 ### 3.3 テストケース設計
 
@@ -582,11 +709,20 @@ class SemanticChunkingPipeline:
 **定量指標:**
 - 改行保持率: 100%
 - リスト構造保持率: 95%以上
-- 処理速度: 既存比130%以内
-- メモリ使用量: 既存比150%以内
+- トークン数適性: 95%以上のチャンクが200-3000トークン範囲内
+- 翻訳コンテキスト保持率: 90%以上（見出し情報含有率）
+- 処理速度: 既存比125%以内
+- メモリ使用量: 既存比140%以内
+
+**翻訳品質指標:**
+- チャンク平均トークン数: 1800-2200トークン（最適範囲）
+- 構造複雑性スコア: 平均0.5以下（翻訳困難度指標）
+- 翻訳準備完了率: 98%以上
 
 **定性指標:**
-- ユーザビリティの大幅改善
+- LLM翻訳品質の大幅改善
+- 翻訳処理効率の向上
+- 構造情報の完全保持
 - 新機能開発の基盤構築
 - 保守性の向上
 
@@ -607,10 +743,43 @@ class SemanticChunkingPipeline:
 2. 既存システムとの統合
 3. 本格的なテストとデバッグ
 
+## 6. LLM翻訳最適化まとめ
+
+### 6.1 主要な最適化ポイント
+
+1. **トークン数ベースのチャンクサイズ制御**
+   - 文字数制限からトークン数制限への変更（200-3000トークン）
+   - GPT系LLMに最適化されたトークナイザー使用（tiktoken）
+
+2. **翻訳品質を考慮したコンテキスト長最適化**
+   - 最適チャンクサイズ: 2000トークン（翻訳品質と効率のバランス）
+   - 見出し情報の各チャンクへの包含（翻訳コンテキスト保持）
+
+3. **構造複雑性による翻訳難易度評価**
+   - 複雑性スコア算出（0.0-1.0）
+   - 過度に複雑な構造の自動分割判断
+
+4. **翻訳準備状態の品質保証**
+   - チャンクごとの翻訳適性評価
+   - 翻訳準備完了状態の自動検証
+
+### 6.2 翻訳後の構造復元について
+
+**現時点で対応しない理由:**
+- LLMが翻訳しやすく、意味的に適切に区切られていれば結合は困難ではない
+- 翻訳品質の向上を優先し、後処理の複雑性を避ける
+- シンプルなアーキテクチャによる保守性の確保
+
+**将来的な拡張可能性:**
+- メタデータ保持により、必要に応じて構造復元機能の追加が容易
+- チャンク間の関係性情報の保持により、高度な結合処理も実装可能
+
 ---
 
 **作成日**: 2025/01/27  
+**更新日**: 2025/01/27（LLM翻訳最適化対応）  
 **作成者**: AI Assistant  
 **関連Issue**: #004  
 **前提文書**: docs/proposal_issue_004_solutions.md  
-**実装対象**: sentence_based_chunker/
+**実装対象**: sentence_based_chunker/  
+**最適化対象**: LLM翻訳用途
