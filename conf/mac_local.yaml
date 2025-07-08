@@ -14,3 +14,17 @@ llm:
 
 failover:
   f1_drop_threshold: 0.03       # 3pt 以上下落で警告ログ
+
+document_structure:
+  preserve_structure: true
+  detect_markdown: true
+  detect_html: true
+  detect_indentation: true
+  preserve_headers: true
+  preserve_lists: true
+  preserve_tables: true
+  preserve_code_blocks: true
+  min_header_level: 1
+  max_header_level: 6
+  list_indent_threshold: 2
+  preserve_whitespace: true
