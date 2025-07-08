@@ -14,3 +14,4 @@
 3. 実装する機能ごとに作業フォルダを分ける
 4. 実装したい機能については[仕様書](./docs/仕様書.md)を参照。同フォルダ内には、実装機能に関する文書が保存されているので、適宜参照すること
 5. 更新履歴は docs/change_history/ を参照
+    5.1. semantic_parserの更新履歴は docs/change_history/semantic_parser_change_log.md に記載してください

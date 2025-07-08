@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.3, pytest-8.3.5, pluggy-1.6.0 -- /Users/desesseintes/.pyenv/versions/3.12.3/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/desesseintes/Downloads/VSCode/sentence_based_chunker
+plugins: anyio-4.9.0
+collecting ... collected 29 items
+
+tests/test_document_node.py::TestDocumentNodeCreation::test_basic_node_creation PASSED [  3%]
+tests/test_document_node.py::TestDocumentNodeCreation::test_node_with_metadata PASSED [  6%]
+tests/test_document_node.py::TestDocumentNodeCreation::test_node_with_children PASSED [ 10%]
+tests/test_document_node.py::TestDocumentNodeCreation::test_list_node_creation PASSED [ 13%]
+tests/test_document_node.py::TestDocumentNodeCreation::test_section_node_creation PASSED [ 17%]
+tests/test_document_node.py::TestDocumentNodeCreation::test_complex_document_structure PASSED [ 20%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_paragraph_format_restoration PASSED [ 24%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_section_format_restoration PASSED [ 27%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_list_format_restoration PASSED [ 31%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_nested_list_format_restoration PASSED [ 34%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_ordered_list_format_restoration PASSED [ 37%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_document_format_restoration PASSED [ 41%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_format_config_application PASSED [ 44%]
+tests/test_document_node.py::TestDocumentNodeFormatRestoration::test_line_break_preservation PASSED [ 48%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_empty_content PASSED [ 51%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_none_content_handling PASSED [ 55%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_invalid_node_type PASSED [ 58%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_add_invalid_child PASSED [ 62%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_line_number_update PASSED [ 65%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_deep_nesting PASSED [ 68%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_circular_reference_prevention PASSED [ 72%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_large_content_handling PASSED [ 75%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_special_characters_handling PASSED [ 79%]
+tests/test_document_node.py::TestDocumentNodeEdgeCases::test_metadata_edge_cases PASSED [ 82%]
+tests/test_document_node.py::TestDocumentNodeUtilityMethods::test_find_children_by_type PASSED [ 86%]
+tests/test_document_node.py::TestDocumentNodeUtilityMethods::test_get_text_length PASSED [ 89%]
+tests/test_document_node.py::TestDocumentNodeUtilityMethods::test_to_dict_serialization PASSED [ 93%]
+tests/test_document_node.py::TestDocumentNodeUtilityMethods::test_to_dict_with_children PASSED [ 96%]
+tests/test_document_node.py::TestDocumentNodeUtilityMethods::test_string_representations PASSED [100%]
+
+============================== 29 passed in 0.01s ==============================
